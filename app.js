@@ -31,6 +31,20 @@ function sumarDevolucion(det) {
   }, 0) | 0;
 }
 
+function getCuentaTransferenciaPorMedioPago(medioPago) {
+  const medio = String(medioPago || '').toLowerCase();
+
+  if (medio.includes('mercado pago') || medio.includes('mercadopago')) {
+    return { cuenta: '11020209', nombre: 'Mercado Pago' };
+  }
+
+  if (medio.includes('flow')) {
+    return { cuenta: '11020219', nombre: 'Flow' };
+  }
+
+  return null;
+}
+
 /**
  * Revisa todos los reembolsos que ya están "creados" en Flow
  * y actualiza su estado en RT_INFO_REEMBOLSO cuando pasan a
@@ -112,10 +126,10 @@ async function pagarNotasCreditoFlow() {
       // 1) Folio de la boleta para buscar en MarketingDocument_SAP_CAB
       // 🔧 IMPORTANTE: ajusta el nombre de la columna real en NC_DEVOLUCION_CAB
       const folioBoleta =
-        cab.FOLIO_BOLETA || // ejemplo
-        cab.N_BOLETA     || // ejemplo
-        cab.BOLETA       || // ejemplo
-        cab.U_Fae_FolioRef; // si ya la tienes mapeada igual
+        cab.FOLIO_BOLETA || 
+        cab.N_BOLETA     || 
+        cab.BOLETA       || 
+        cab.U_Fae_FolioRef; 
 
       if (!folioBoleta) {
         console.warn(`ID=${cab.ID} no tiene folio de boleta asociado, se omite.`);
@@ -142,7 +156,15 @@ async function pagarNotasCreditoFlow() {
       const docDate    = cab.FECHA_NC || cab.FECHA_CREACION || new Date();
       const cardCode   = 'T1999';     // Cliente de reembolsos
       const docType    = 'C';         // Payment - customers
-      const cuentaFlow = '11020219';  // Cuenta contable Flow
+      const medioPago  = ncc.MEDIO_PAGO || cab.MEDIO_PAGO;
+      const cuentaTransferencia = getCuentaTransferenciaPorMedioPago(medioPago);
+
+      if (!cuentaTransferencia) {
+        console.warn(
+          `Medio de pago no reconocido para ID=${cab.ID} (${medioPago || 'sin MEDIO_PAGO'}), se omite.`
+        );
+        continue;
+      }
 
       // El documento referenciado es la BOLETA (DocEntry) → normalmente tipo 13
       const refTypeDocument = 14;     // Ajusta si tu codificación es distinta
@@ -162,7 +184,7 @@ async function pagarNotasCreditoFlow() {
         CashSum:        0,           // solo transferencia
         CashAcct:       null,
         TrsfrSum:       monto,
-        TrsfrAcct:      cuentaFlow,
+        TrsfrAcct:      cuentaTransferencia.cuenta,
         TrsfrDate:      docDate,
         JrnlMemo:       comentarioSAP,
         RefDocument:    refDocument,
@@ -179,7 +201,8 @@ async function pagarNotasCreditoFlow() {
       } else {
         console.log(
           `✓ Insertado pago en REPORTESAP para NC ID=${cab.ID}, ` +
-          `Boleta folio=${folioBoleta}, DocEntry=${refDocument}, monto=${monto}`
+          `Boleta folio=${folioBoleta}, DocEntry=${refDocument}, ` +
+          `medio=${cuentaTransferencia.nombre}, cuenta=${cuentaTransferencia.cuenta}, monto=${monto}`
         );
       }
     } catch (err) {

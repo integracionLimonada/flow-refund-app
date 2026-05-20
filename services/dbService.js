@@ -229,6 +229,11 @@ async function getNotasCreditoPagadasFlow() {
       AND RSA.AREA = 'TESORERIA'
       AND NCC.NC IS NOT NULL
       AND NCC.ID_MEDIO_PAGO IS NOT NULL
+      AND (
+        NCC.MEDIO_PAGO LIKE '%Flow%'
+        OR NCC.MEDIO_PAGO LIKE '%Mercado Pago%'
+        OR NCC.MEDIO_PAGO LIKE '%MercadoPago%'
+      )
       -- Solo las NC cuyo pago NO está procesado en IncomingVendorPayment_CAB
       AND (SAP2.ProccessSap IS NULL OR SAP2.ProccessSap <> 1)
       -- AND NCC.ORDER_ID = 1741683
